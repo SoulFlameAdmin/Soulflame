@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you reference SoulFlame, please cite the project and its creator."
+title: "SoulFlame"
+type: software
+authors:
+  - family-names: "Lambov"
+    given-names: "Dimitar Veselinov"
+url: "https://soulflame-twins.vercel.app/"
+repository-code: "https://github.com/SoulFlameAdmin/Soulflame"
+abstract: "SoulFlame is a technology ecosystem created by Dimitar Veselinov Lambov (Димитър Веселинов Ламбов)."
