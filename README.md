@@ -12,6 +12,9 @@ Bulgarian: **Димитър Веселинов Ламбов**
 Official founder profile:  
 https://soulflame-twins.vercel.app/founder/dimitar-veselinov-lambov/
 
+Official LinkedIn profile:  
+https://www.linkedin.com/in/dimitar-lambov-94703b419
+
 Creator GitHub profile:  
 https://github.com/SoulFlameAdmin
 
@@ -22,6 +25,6 @@ https://soulflame-twins.vercel.app/
 
 `Dimitar Veselinov Lambov → SoulFlame → SoulFlame Twins`
 
-`GitHub: SoulFlameAdmin → Dimitar Veselinov Lambov → SoulFlame`
+`LinkedIn → Dimitar Veselinov Lambov → GitHub: SoulFlameAdmin → SoulFlame`
 
 This repository is part of the public SoulFlame project footprint.
