@@ -49,6 +49,167 @@ async function newLead(){let company=prompt('Фирма');if(!company)return;let
 function exportMonth(){let cols=['task_date','task_time','title','project','status','acceptance','description'];let csv='\ufeff'+[cols,...tasks.map(t=>cols.map(k=>t[k]))].map(row=>row.map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(';')).join('\r\n');let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='SOULFLAME-'+month+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500)}
 document.addEventListener('click',async e=>{let x=e.target.closest('[data-tab],[data-date],[data-move],[data-status],[data-edit],#logout,#reload,#add-person,[data-invite],#add-contract,#add-payment,#add-lead,#new-task,#export');if(!x)return;try{if(x.id==='logout')return logout();if(x.id==='reload'){await load();return render()}if(x.dataset.tab){view=x.dataset.tab;return render()}if(x.dataset.date){day=x.dataset.date;return render()}if(x.dataset.move){let[y,m]=month.split('-').map(Number),n=new Date(Date.UTC(y,m-1+Number(x.dataset.move),1)).toISOString().slice(0,7);if(n<BEGIN||n>END)return tell('Календарът е от ноември 2026 до декември 2028');month=n;day=n+'-01';await load();return render()}if(x.dataset.status)return changeStatus(tasks.find(t=>t.id===x.dataset.status));if(x.dataset.edit)return editTask(tasks.find(t=>t.id===x.dataset.edit));if(x.id==='add-person')return newPerson();if(x.dataset.invite)return newInvite(x.dataset.invite);if(x.id==='new-task')return editTask(null);if(x.id==='add-contract')return newContract();if(x.id==='add-payment')return newPayment();if(x.id==='add-lead')return newLead();if(x.id==='export')return exportMonth()}catch(err){tell(err.message)}});
 document.addEventListener('change',async e=>{let x=e.target;if(x.dataset.done){let t=tasks.find(t=>t.id===x.dataset.done);if(t)await changeStatus(t,x.checked)}else if(x.id==='proj'){filterProject=x.value;render()}else if(x.id==='person'){filterPerson=x.value;render()}});
-try{session=JSON.parse(localStorage.getItem('sfcal_auth')||'null')}catch{}init();
+
+const DEMO_START='2026-11-01',DEMO_END='2028-12-31';
+const demoKey='soulflame_calendar_nologin_v2';
+let demoStore;
+try{demoStore=JSON.parse(localStorage.getItem(demoKey)||'{}')}catch{demoStore={}}
+if(!demoStore||typeof demoStore!=='object')demoStore={};
+demoStore.states=demoStore.states||{};
+demoStore.edits=demoStore.edits||{};
+demoStore.extra=demoStore.extra||[];
+demoStore.people=demoStore.people||['Митко','Борко','Енчо'];
+demoStore.contracts=demoStore.contracts||[];
+demoStore.payments=demoStore.payments||[];
+demoStore.leads=demoStore.leads||[];
+const demoParams=new URLSearchParams(location.search);
+let demoMode=demoParams.get('person')||'Всички';
+if(!demoStore.people.includes(demoMode))demoMode='Всички';
+let demoTab='calendar',demoMonth='2026-11',demoDay='2026-11-01',demoProject='all';
+const PROJECT_DEMO={'dpp-bg':'DPP България','dpp-es':'DPP Испания','dpp-tech':'DPP Техника','enchev':'ENCHEV Auctions','restaurant':'Restaurant OS · Орешака','mexico':'Мексикански сайт','operations':'Управление'};
+function demoSave(){try{localStorage.setItem(demoKey,JSON.stringify(demoStore))}catch(e){tell('Устройството не може да запише промените: '+e.message)}}
+function demoId(d,k){return d+':'+k}
+function demoItem(d,k,time,owner,project,title,acceptance){return {id:demoId(d,k),task_date:d,task_time:time,owner,project,title,acceptance,status:'todo',description:''}}
+function demoGenerate(){
+ let all=[],date=new Date(Date.UTC(2026,10,1)),last=Date.UTC(2028,11,31),names=['Пн','Вт','Ср','Чт','Пт'];
+ let bgAreas=['индустриални батерии над 2 kWh','BESS интегратори и производители','LMT батерии за велосипеди/тротинетки','EV батерии и производители на модули','повторни разговори с квалифицирани фирми'];
+ let esAreas=['fabricantes de baterías industriales','fabricantes e integradores BESS','baterías para movilidad ligera (LMT)','empresas de baterías EV','seguimientos a contactos cualificados'];
+ let qaDpp=['C04: архивиране на DB+Storage, проверка на хешове и реален restore в изолирана среда','C04: репетиция на миграциите, rollback и одобрение на собственика','E2.3: валидиране на import, типове, единици и права на производителите','E2.4: тест на 10 реални батерии, QR печат, 2 телефона и актуализация','Пусни CI и независим QA: отбележи PASS/FAIL, линк, блокери'];
+ let qaEnchev=['LIVE търг: 3–4 устройства, 2 наддаващи и наблюдател; запиши резултат','Провери отделната ENCHEV Supabase среда, auth, роли и ограничения','Тествай double-bid, 5s cooldown, anti-snipe, race conditions и победител','Мобилно QA, мрежови грешки, рестарт и логи на администратора','Седмичен acceptance: работещо демо, протокол PASS/FAIL и отворени дефекти'];
+ while(date.getTime()<=last){
+  let d=date.toISOString().slice(0,10),wd=(date.getUTCDay()+6)%7,dd=date.getUTCDate(),m=date.getUTCMonth()+1,y=date.getUTCFullYear(),phase=(y-2026)*12+m-11,stage=Math.min(8,Math.max(1,phase+1)),quarter=Math.floor(phase/3)+1;
+  const add=(k,time,p,pr,t,a)=>all.push(demoItem(d,k,time,p,pr,t,a));
+  if(d==='2026-11-01'){
+    add('kick','09:00','Митко','operations','СТАРТ: създай списъци с 30 DPP фирми България, 30 Испания и 10 ресторанта','Готови списъци и 3 приоритетни клиента за следващата седмица');
+    add('offers','11:00','Митко','operations','Подготви 4 конкретни оферти: DPP пилот, Restaurant OS, Мексикански сайт и ENCHEV','Оферти с цена, обхват, срок и условия за плащане');
+    add('prepare','12:00','Енчо','dpp-es','Подготви испански скрипт, 30 фирми и списък с лицата за съответствие','Поне 30 реални фирми със сайт и публичен контакт');
+    add('blockers','14:00','Борко','dpp-tech','Прегледай C04/E2.3/E2.4 и ENCHEV staging блокерите и подреди по риск','Конкретни блокери, тестове и критерии PASS за седмицата');
+  }else if(wd<5){
+    let monthTarget=phase===0?2:phase===1?3:phase===2?4:5;
+    let focus=dd<=7?'подготовка и квалификация':dd<=14?'демонстрации и реални тестове':dd<=21?'изпращане на оферти и преговори':'договори, приемане, плащания и поддръжка';
+    add('priority','09:00','Митко','operations','Определи 3 приоритета за деня: '+focus+'; прегледай вчерашните обещания','3 записа с компания, срок и следващо действие');
+    add('bg5','09:30','Митко','dpp-bg','Свържи се с 5 български фирми: '+bgAreas[wd]+'. Запиши всяко обаждане','Пет опита с фирма, човек, резултат и дата на следващ разговор');
+    add('es5','10:00','Енчо','dpp-es','Contacta con 5 empresas en España: '+esAreas[wd]+'. Actualiza el seguimiento','5 verificables llamadas/emails, persona responsable y siguiente fecha');
+    add('dppqa','11:00','Борко','dpp-tech',(phase<2?qaDpp[wd]:phase<5?['Провери истинския пилот от производител и съгласие за данните','LMT: задължителни полета и консистентност на типовете','Провери RLS, импорт и изолация на фирмите','QR lifecycle: актуализация, срокове, публичен/частен режим','Пълна регресия и клиентско UAT с логове'][wd]:['Регресия на DPP import и API, включително грешни входни данни','Провери изолацията на фирмите, сесиите и логовете','Актуализирай секторните изисквания и данните за паспорта','Изпълни backup/restore тест и провери QR версиите','Клиентски UAT и QA отчет; отстрани най-рисковия дефект'][wd]),'Линк към тест, проверими PASS/FAIL и документирани оставащи дефекти');
+    add('bgfollow','13:00','Митко','dpp-bg',(dd<=7?'Квалифицирай 2 нови DPP фирми и покани за техническо демо':dd<=14?'Проведи/насрочи 1 DPP демонстрация и изпрати писмено резюме':dd<=21?'Изпрати персонална оферта с обхват, цена и срок за DPP пилот':'Поискай подписване/плащане за DPP България; ако няма решение, уговори конкретна дата')+' · цел '+monthTarget+' активни DPP клиента','Поне един реален отговор, оферта, среща или записана следваща дата');
+    add('esfollow','13:30','Енчо','dpp-es',dd<=10?'Ofrece 2 demostraciones técnicas y registra los decisores':dd<=20?'Envía propuestas DPP y confirma presupuesto y calendario':'Cierra seguimiento de piloto DPP con propuesta y próxima decisión','2 персонализирани последващи действия и точен статус на фирмите');
+    add('auctionqa','14:00','Борко','enchev','ENCHEV '+(phase<8?'Етап '+stage+': ':'поддръжка: ')+qaEnchev[wd],'Доказателство за тест, резултат PASS/FAIL и критичните дефекти; не включвай истински пари преди приемане');
+    add('auctiondeal','14:45','Митко','enchev',phase<8?(dd<=7?'ЕНЧЕВ Етап '+stage+': уточни критерии, обхват и отговорници':dd<=15?'ЕНЧЕВ Етап '+stage+': уговори/проведи приемателно демо':dd<=23?'ЕНЧЕВ Етап '+stage+': изпрати списък с оставащи корекции':'ЕНЧЕВ Етап '+stage+': поискай писмено приемане и плащане по договор'):'ЕНЧЕВ: провери 500 € абонамент и поддръжка; потърси нова платена заявка','Писмен статус, протокол или плащане; 2 400 € на етап само след приемане');
+    add('restaurant','15:15','Митко','restaurant',phase===0?(dd<=8?'Орешака: уговори среща и уточни телефон, меню и принтери':dd<=15?'Орешака: покажи сервитьор → кухня/бар → админ табло':'Орешака: изпрати оферта, уточни 50 €/месец и поискай подписване'):phase<=3?'Орешака: тествай работа на място, договор за 50 €/месец и поискай препоръка':'Restaurant OS: провери обслужването на клиента и 2 нови ресторанта за контакт','Реална среща, писмено решение, договор или заявка за поправка');
+    add('mexico','15:40','Митко','mexico',phase===0?(dd<=10?'Мексикански сайт София: покажи страницата и събери корекции':dd<=20?'Мексикански сайт: изпрати финална версия и потвърди цена 300–1000 €':'Мексикански сайт: писмено приемане, фактура и 50 €/месечна поддръжка'):'Мексикански сайт: месечна техническа проверка, фактура и обратна връзка','Писмено одобрение/срок или реално плащане; без фиктивни приходи');
+    add('report','16:40','Митко','operations','Дневен отчет: контакти, срещи, оферти, договори, платени суми и блокери','Актуални данни в календара, 3 приоритета за следващия ден');
+    if(dd>=28){
+      add('milestone','17:00','Митко','operations','Край на месеца: провери DPP цел '+monthTarget+' абонамента × 500 €, ENCHEV, Орешака и Мексико','Отделни стойности за план, подписано, реално платено; следваща стъпка за пропуските');
+    }
+  }else if(wd===5){
+    add('week','10:00','Митко','operations','Седмичен отчет №'+quarter+': реални разговори, DPP демота, оферти, плащания','Таблица с реални KPI и 3 сделки за следващата седмица');
+    add('techweek','11:00','Борко','dpp-tech','Седмичен QA отчет: DPP C04/E2.3/E2.4 и ENCHEV; маркирай блокерите','Линк към тестовете, PASS/FAIL и конкретни задачи за понеделник');
+    add('esweek','11:30','Енчо','dpp-es','Resumen semanal: empresas españolas, demos, propuestas y decisiones','Контакти, резултати и 5 приоритетни испански фирми');
+  }else{
+    add('sundayplan','17:00','Митко','operations','Планирай седмицата: кои 5 конкретни сделки водят до реални плащания','Избрани фирми, отговорници, срещи и следващи действия');
+    add('sundaytech','17:15','Борко','enchev','Провери плана за ENCHEV и DPP за следващата седмица','Подреден ред на техническите проверки и срокове');
+  }
+  date.setUTCDate(date.getUTCDate()+1);
+ }
+ return all;
+}
+const demoGenerated=demoGenerate(),demoBaseMap=new Map(demoGenerated.map(x=>[x.id,x]));
+function demoAll(){return demoGenerated.concat(demoStore.extra).map(t=>Object.assign({},t,demoStore.edits[t.id]||{},{status:demoStore.states[t.id]||t.status||'todo'}))}
+function demoVisible(){return demoAll().filter(t=>(demoMode==='Всички'||t.owner===demoMode)&&(demoProject==='all'||t.project===demoProject))}
+function demoMonthTasks(){return demoVisible().filter(t=>t.task_date.startsWith(demoMonth))}
+function demoDateTasks(){return demoMonthTasks().filter(t=>t.task_date===demoDay)}
+function demoLayout(){
+ const navs=[['calendar','▦ Календар'],['tasks','☑ Задачи'],['team','♙ Екип'],['money','€ Приходи'],['leads','◉ Контакти']];
+ const banner='<div class="notice"><b>Режим без вход</b> — календарът се отваря веднага. Отметките и промените се запазват <b>само на това устройство</b>, а не се синхронизират с екипа. Линковете по име не осигуряват поверителност.</div>';
+ return '<div class="shell"><aside class="side"><div class="logo">✦ SOUL<span>FLAME</span><small>MASTER CALENDAR</small></div><nav class="nav">'+navs.map(n=>'<button data-demo-tab="'+n[0]+'" class="'+(demoTab===n[0]?'sel':'')+'">'+n[1]+'</button>').join('')+'</nav><div class="sidefoot"><b>Без регистрация</b><p>1.11.2026 – 31.12.2028</p></div></aside><div class="main"><div class="topbar"><b>SOULFLAME <span class="dim">/ '+safe(demoTab)+'</span></b><div><span class="dim">'+safe(demoMode)+'</span> <button class="btn small secondary" data-demo-action="resetfilter">Всички</button></div></div><main class="content">'+banner+'<div class="eyebrow">SOULFLAME · ДНЕВЕН МАСТЪРПЛАН</div>'+demoBody()+'</main></div></div>';
+}
+function demoFilters(){
+ return '<select class="inp" id="demo-person"><option value="Всички">Всички хора</option>'+demoStore.people.map(p=>'<option value="'+safe(p)+'" '+(demoMode===p?'selected':'')+'>'+safe(p)+'</option>').join('')+'</select><select class="inp" id="demo-project"><option value="all">Всички проекти</option>'+Object.entries(PROJECT_DEMO).map(([k,v])=>'<option value="'+k+'" '+(demoProject===k?'selected':'')+'>'+safe(v)+'</option>').join('')+'</select>';
+}
+function demoTaskCard(t){
+ return '<div class="task '+(t.status==='done'?'done':'')+'"><input type="checkbox" data-demo-check="'+safe(t.id)+'" '+(t.status==='done'?'checked':'')+'><div class="tasktext"><b>'+safe(t.title)+'</b><div class="meta">'+safe(t.task_time)+' · '+safe(PROJECT_DEMO[t.project]||t.project)+' · '+safe(t.owner)+'</div><span class="pill">'+safe(({todo:'Предстои',in_progress:'В работа',blocked:'Блокирано',done:'Готово'})[t.status]||t.status)+'</span><details><summary class="dim" style="font-size:11px">Какво е необходимо за готово?</summary><p>'+safe(t.acceptance)+'</p><p class="dim">'+safe(t.description)+'</p></details></div><button class="btn small secondary" data-demo-status="'+safe(t.id)+'">Статус</button><button class="btn small secondary" data-demo-edit="'+safe(t.id)+'">✎</button></div>';
+}
+function demoCalendar(){
+ const [y,m]=demoMonth.split('-').map(Number),n=new Date(Date.UTC(y,m,0)).getUTCDate(),offset=(new Date(Date.UTC(y,m-1,1)).getUTCDay()+6)%7,all=demoMonthTasks();
+ let out='<div class="week">'+['Пн','Вт','Ср','Чт','Пт','Сб','Нд'].map(x=>'<div>'+x+'</div>').join('')+'</div><div class="cal">';
+ for(let i=0;i<Math.ceil((n+offset)/7)*7;i++){
+  let d=i-offset+1;
+  if(d<1||d>n){out+='<span class="cell off"></span>';continue}
+  let x=demoMonth+'-'+String(d).padStart(2,'0'),arr=all.filter(t=>t.task_date===x);
+  out+='<button class="cell '+(x===demoDay?'sel':'')+'" data-demo-date="'+x+'"><b>'+d+'</b><em>'+arr.filter(t=>t.status==='done').length+'/'+arr.length+' задачи</em></button>';
+ }
+ return out+'</div>';
+}
+function demoMonthTitle(){let [y,m]=demoMonth.split('-').map(Number);return NAMES[m-1][0].toUpperCase()+NAMES[m-1].slice(1)+' '+y}
+function demoStats(){
+ let mt=demoMonthTasks();return '<div class="stats">'+stat('Задачи за месеца',mt.length,'От '+demoGenerated.length+' планирани')+stat('Изпълнени',mt.filter(t=>t.status==='done').length,'На това устройство')+stat('Избран ден',demoDay.slice(8)+' '+NAMES[+demoDay.slice(5,7)-1],'Стъпки и контрол')+stat('Месечна цел','3 100 €','Планиран абонаментен оборот')+'</div>';
+}
+function demoBody(){
+ if(demoTab==='calendar'){
+  let a=demoDateTasks();
+  return '<h1>Календар ден по ден</h1><p class="dim">792 дни · ноември 2026 – декември 2028 · задачи за Митко, Борко и Енчо</p>'+demoStats()+'<div class="actions"><button class="btn secondary" data-demo-move="-1">←</button><b>'+demoMonthTitle()+'</b><button class="btn secondary" data-demo-move="1">→</button>'+demoFilters()+'<button class="btn primary" data-demo-action="newtask">+ Задача</button></div><div class="cols"><div class="card">'+demoCalendar()+'<p class="dim" style="font-size:11px">Дните през уикенда са за преглед и планиране. Работните дни са за контакти, демота и технически тестове.</p></div><div class="card"><div class="cardhead"><h2>'+demoDay+'</h2><span class="pill">'+a.filter(t=>t.status==='done').length+'/'+a.length+' готови</span></div>'+a.map(demoTaskCard).join('')+'</div></div>';
+ }
+ if(demoTab==='tasks'){
+  let a=demoMonthTasks();
+  return '<h1>Задачи · '+demoMonthTitle()+'</h1><div class="actions"><button class="btn secondary" data-demo-move="-1">←</button><button class="btn secondary" data-demo-move="1">→</button>'+demoFilters()+'<button class="btn primary" data-demo-action="newtask">+ Задача</button></div><div class="card">'+a.map(demoTaskCard).join('')+'</div>';
+ }
+ if(demoTab==='team'){
+  return '<h1>Екип и лични линкове</h1><div class="actions"><button class="btn primary" data-demo-action="addperson">+ Добави човек</button></div><div class="card">'+demoStore.people.map(p=>'<div class="row"><div><b>'+safe(p)+'</b><div class="dim">Задачи по име</div></div><button class="btn small secondary" data-demo-share="'+safe(p)+'">Копирай линк</button></div>').join('')+'<p class="dim">Всеки линк показва задачите на избрания човек, без вход. <b>Това не е защитен личен акаунт</b>; получените отметки не се връщат автоматично при теб. За истинска обща работа трябва защитен достъп.</p></div>';
+ }
+ if(demoTab==='money'){
+  let c=demoStore.contracts.filter(x=>x.confirmed&&x.active),r=c.reduce((n,x)=>n+Number(x.amount),0),p=demoStore.payments.filter(x=>x.date.startsWith(demoMonth)).reduce((n,x)=>n+Number(x.amount),0);
+  return '<h1>Реални приходи · цел 3 100 €/месец</h1><div class="stats">'+stat('Планирани','3 100 €','Цел')+stat('Подписани',euro(r),'Въведени договори')+stat('Получени',euro(p),demoMonthTitle())+stat('Липсват',euro(Math.max(0,TARGET-r)),'До месечната цел')+'</div><div class="card"><h2>Прогрес по договори</h2><div class="progress" style="margin:13px 0"><div style="width:'+Math.min(100,r/TARGET*100)+'%"></div></div><p class="dim">5 DPP × 500 € + ENCHEV 500 € + Мексикански сайт 50 € + Орешака 50 € = 3 100 €/месец. ENCHEV етапите 8 × 2 400 € и сайтът 300–1000 € са отделни еднократни плащания, не абонаменти.</p></div><div class="cols" style="margin-top:14px"><div class="card"><div class="cardhead"><h2>Договори</h2><button class="btn primary" data-demo-action="contract">+ Договор</button></div>'+demoStore.contracts.map(x=>'<div class="row"><span>'+safe(x.name)+' · '+(x.confirmed?'подписан':'планиран')+'</span><b>'+euro(x.amount)+'</b></div>').join('')+'</div><div class="card"><div class="cardhead"><h2>Реално получени плащания</h2><button class="btn primary" data-demo-action="payment">+ Плащане</button></div>'+demoStore.payments.filter(x=>x.date.startsWith(demoMonth)).map(x=>'<div class="row"><span>'+safe(x.name)+' · '+safe(x.date)+'</span><b>'+euro(x.amount)+'</b></div>').join('')+'</div></div>';
+ }
+ if(demoTab==='leads'){
+  return '<h1>Фирми и разговори</h1><p class="dim">Въвеждай само реални контакти. Не въвеждай чувствителни клиентски данни в този тестов режим.</p><button class="btn primary" data-demo-action="lead">+ Добави фирма</button><div class="card" style="margin-top:14px">'+(demoStore.leads.length?demoStore.leads.map(x=>'<div class="row"><div><b>'+safe(x.name)+'</b><div class="dim">'+safe(x.project)+' · '+safe(x.stage)+'</div><p>'+safe(x.next)+'</p></div></div>').join(''):'<div class="empty">Още няма записани разговори.</div>')+'</div>';
+ }
+ return '';
+}
+function demoRender(){document.getElementById('app').innerHTML=demoLayout()}
+function demoMove(delta){const [y,m]=demoMonth.split('-').map(Number);let next=new Date(Date.UTC(y,m-1+delta,1)).toISOString().slice(0,7);if(next<'2026-11'||next>'2028-12'){tell('Диапазонът е 11.2026–12.2028');return}demoMonth=next;demoDay=next+'-01';demoRender()}
+function demoEdit(id){
+ let t=id?demoAll().find(x=>x.id===id):null;
+ let title=prompt('Задача:',t?.title||'');if(!title)return;
+ let date=prompt('Дата YYYY-MM-DD:',t?.task_date||demoDay);if(!date||date<DEMO_START||date>DEMO_END||!/^\\d{4}-\\d{2}-\\d{2}$/.test(date))return tell('Невалидна дата');
+ let owner=prompt('Отговорник ('+demoStore.people.join(', ')+')',t?.owner||'Митко');if(!demoStore.people.includes(owner))return tell('Добави първо човека в „Екип“');
+ let project=prompt('Проект: '+Object.keys(PROJECT_DEMO).join(', '),t?.project||'operations');if(!PROJECT_DEMO[project])return tell('Невалиден проект');
+ let acceptance=prompt('Как доказваме, че е изпълнено?',t?.acceptance||'Проверим резултат');if(acceptance===null)return;
+ let change={title,task_date:date,owner,project,acceptance};
+ if(id){demoStore.edits[id]=Object.assign({},demoStore.edits[id]||{},change)}
+ else{demoStore.extra.push(Object.assign({id:'custom:'+Date.now()+':'+Math.random().toString(36).slice(2),task_time:'11:00',status:'todo',description:''},change))}
+ demoMonth=date.slice(0,7);demoDay=date;demoSave();demoRender();
+}
+document.addEventListener('click',async ev=>{
+ let el=ev.target.closest('[data-demo-tab],[data-demo-date],[data-demo-move],[data-demo-action],[data-demo-status],[data-demo-edit],[data-demo-share]');
+ if(!el)return;
+ if(el.dataset.demoTab){demoTab=el.dataset.demoTab;return demoRender()}
+ if(el.dataset.demoDate){demoDay=el.dataset.demoDate;return demoRender()}
+ if(el.dataset.demoMove){return demoMove(Number(el.dataset.demoMove))}
+ if(el.dataset.demoEdit){return demoEdit(el.dataset.demoEdit)}
+ if(el.dataset.demoStatus){let id=el.dataset.demoStatus,t=demoAll().find(x=>x.id===id);if(!t)return;let s=prompt('Статус: todo / in_progress / blocked / done',t.status);if(s===null)return;if(!['todo','in_progress','blocked','done'].includes(s))return tell('Невалиден статус');let note=prompt('Бележка по задачата',t.description||'');demoStore.states[id]=s;if(note!==null)demoStore.edits[id]=Object.assign({},demoStore.edits[id]||{},{description:note});demoSave();return demoRender()}
+ if(el.dataset.demoShare){let url=location.origin+location.pathname+'?person='+encodeURIComponent(el.dataset.demoShare);try{await navigator.clipboard.writeText(url)}catch{}prompt('Копирай линк за '+el.dataset.demoShare+' (без синхронизация):',url);return}
+ const action=el.dataset.demoAction;
+ if(action==='resetfilter'){demoMode='Всички';history.replaceState({},'',location.pathname);return demoRender()}
+ if(action==='newtask')return demoEdit(null);
+ if(action==='addperson'){let name=prompt('Име на новия човек');if(!name?.trim()||demoStore.people.includes(name.trim()))return;demoStore.people.push(name.trim().slice(0,70));demoSave();return demoRender()}
+ if(action==='contract'){
+  let name=prompt('Клиент/фирма');if(!name)return;let amt=Number(prompt('Месечен абонамент €','500'));if(!Number.isFinite(amt)||amt<0)return tell('Невалидна сума');let confirmed=confirm('Има ли реално подписан договор? Отказ = само планиран.');demoStore.contracts.push({name,amount:amt,confirmed,active:true});demoSave();return demoRender()
+ }
+ if(action==='payment'){
+  let name=prompt('Основание за получено плащане');if(!name)return;let amt=Number(prompt('Реално получена сума €'));if(!Number.isFinite(amt)||amt<=0)return tell('Невалидна сума');let date=prompt('Дата YYYY-MM-DD',demoDay);if(!/^\d{4}-\d{2}-\d{2}$/.test(date||''))return tell('Невалидна дата');demoStore.payments.push({name,amount:amt,date});demoSave();return demoRender()
+ }
+ if(action==='lead'){
+  let name=prompt('Компания');if(!name)return;let project=prompt('Проект','dpp-bg')||'dpp-bg',stage=prompt('Статус на разговора','Нов контакт')||'',next=prompt('Следваща стъпка','')||'';demoStore.leads.push({name,project,stage,next});demoSave();return demoRender()
+ }
+});
+document.addEventListener('change',ev=>{
+ let x=ev.target;
+ if(x.dataset.demoCheck){demoStore.states[x.dataset.demoCheck]=x.checked?'done':'todo';demoSave();demoRender()}
+ if(x.id==='demo-person'){demoMode=x.value;demoRender()}
+ if(x.id==='demo-project'){demoProject=x.value;demoRender()}
+});
+
+try{session=JSON.parse(localStorage.getItem('sfcal_auth')||'null')}catch{}
+if(new URLSearchParams(location.search).get('secure')==='1'){init()}else{demoRender()}
 })();
 </script></body></html>
