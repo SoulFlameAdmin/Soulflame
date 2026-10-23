@@ -233,7 +233,87 @@ document.addEventListener('change',ev=>{
  if(x.id==='demo-project'){demoProject=x.value;demoRender()}
 });
 
+
+/* SOULFLAME TODAY · Shared, token-scoped task progress.
+   Hash fragment is never sent as part of the URL request. */
+const liveParams=new URLSearchParams(location.search);
+const liveDate=liveParams.get('today');
+const liveToken=new URLSearchParams(location.hash.replace(/^#/,'')).get('work');
+let liveRows=[],liveBusy=false,liveError='',liveTicker=null;
+const liveStatusLabels={todo:'Предстои',in_progress:'В работа',blocked:'Блокирано',done:'Готово'};
+async function liveCall(name,payload){
+ const res=await fetch(BASE+'/rest/v1/rpc/'+name,{method:'POST',headers:{'apikey':KEY,'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(payload),cache:'no-store'});
+ const value=await res.json().catch(()=>null);
+ if(!res.ok)throw Error(value?.message||'Сървърна грешка '+res.status);
+ return value;
+}
+function liveView(){
+ let all=liveRows.length,done=liveRows.filter(x=>x.status==='done').length,working=liveRows.filter(x=>x.status==='in_progress').length,blocked=liveRows.filter(x=>x.status==='blocked').length;
+ let mark=(x)=>'<option value="'+x+'" '+(x===this?'selected':'')+'>'+liveStatusLabels[x]+'</option>';
+ let renderOne=t=>{
+  let badge=liveStatusLabels[t.status]||t.status;
+  return '<div class="task '+(t.status==='done'?'done':'')+'" style="align-items:flex-start;gap:12px">'
+   +'<input type="checkbox" data-live-done="'+safe(t.id)+'" '+(t.status==='done'?'checked':'')+' aria-label="Готово">'
+   +'<div class="tasktext" style="min-width:0;flex:1"><b>'+safe(t.title)+'</b>'
+   +'<div class="meta">'+safe(t.task_time)+' · '+safe(PROJECT_DEMO[t.project]||t.project)+' · '+safe(t.owner)+'</div>'
+   +'<span class="pill">'+safe(badge)+'</span>'
+   +(t.note?'<p style="font-size:12px;color:var(--mint)">Последна бележка: '+safe(t.note)+'</p>':'')
+   +'<details style="margin-top:9px"><summary class="dim" style="cursor:pointer;font-size:12px">Критерии и инструкции</summary><p style="font-size:12px">'+safe(t.acceptance)+'</p><p style="font-size:12px" class="dim">'+safe(t.description)+'</p></details>'
+   +'<div class="actions" style="margin-top:10px;gap:7px"><select class="inp" aria-label="Статус" data-live-status="'+safe(t.id)+'" style="max-width:180px;padding:7px">'
+   +Object.keys(liveStatusLabels).map(s=>'<option value="'+s+'" '+(s===t.status?'selected':'')+'>'+liveStatusLabels[s]+'</option>').join('')
+   +'</select><button class="btn small secondary" data-live-note="'+safe(t.id)+'">Бележка</button></div>'
+   +'</div></div>';
+ };
+ const owner=liveParams.get('person')||'Екип';
+ document.querySelector('#app').innerHTML='<div class="shell"><aside class="side"><div class="logo">✦ SOUL<span>FLAME</span><small>MASTER CALENDAR</small></div>'
+  +'<nav class="nav"><button class="sel">◉ Днешни задачи</button><button id="live-full">▦ Цял календар</button></nav>'
+  +'<div class="sidefoot"><b>'+safe(owner)+'</b><p>Общо запазване · без регистрация</p>23.10.2026 · SOULFLAME</div></aside>'
+  +'<div class="main"><div class="topbar"><b>SOULFLAME / ДНЕС</b><button class="btn small secondary" id="live-reload">↻ Обнови</button></div>'
+  +'<main class="content"><div class="eyebrow">РАБОТЕН ПЛАН · 23 ОКТОМВРИ 2026</div><h1>Задачи за днес</h1>'
+  +'<p class="dim">Отметките и статусите се записват в общата база. Борко работи по MEXICO, после тества Restaurant OS. Митко поема инсталатора и физическите принтери.</p>'
+  +(liveError?'<div class="notice" role="alert">'+safe(liveError)+'</div>':'')
+  +'<div class="stats">'+stat('Всички',all,'В този споделен изглед')+stat('Готови',done,'Реално записани')+stat('В работа',working,'В момента')+stat('Блокирани',blocked,'Изискват действие')+'</div>'
+  +'<div class="card"><div class="cardhead"><h2>'+safe(owner)+' · '+safe(liveDate||'')+'</h2><span class="pill">'+done+'/'+all+' готови</span></div>'
+  +(liveRows.length?liveRows.map(renderOne).join(''):(liveError?'<div class="empty">Проверете личния линк или срока му.</div>':'<div class="empty">Няма задачи за този ден.</div>'))+'</div>'
+  +'<div class="notice" style="margin-top:16px">„Готово“ означава реално проверен резултат. За принтерите: симулацията не доказва физически печат. Работете с инсталатора на Митко и запишете PASS/FAIL.</div>'
+  +'<p class="dim" style="font-size:12px">Тази страница обновява данните автоматично на 30 секунди. Другите дни от главния план засега са в локален режим. Пазете личния линк.</p>'
+  +'</main></div></div>';
+}
+async function liveLoad(){
+ if(liveBusy)return;
+ liveBusy=true;
+ try{
+  if(!/^[a-f0-9]{64}$/i.test(liveToken||''))throw Error('Невалиден персонален линк.');
+  liveRows=await liveCall('sfcal_day_view',{p_token:liveToken,p_day:liveDate});
+  liveError='';
+ }catch(e){liveError='Неуспешно зареждане: '+e.message}
+ finally{liveBusy=false;liveView()}
+}
+async function liveSet(id,status,note){
+ if(liveBusy)return;
+ liveBusy=true;
+ try{
+  await liveCall('sfcal_day_set_status',{p_token:liveToken,p_task_id:id,p_status:status,p_note:note||''});
+  liveError='';
+ }catch(e){liveError='Не е запазено: '+e.message}
+ finally{liveBusy=false;await liveLoad()}
+}
+document.addEventListener('click',ev=>{
+ let el=ev.target.closest('[data-live-note],#live-reload,#live-full');
+ if(!el||!liveDate)return;
+ if(el.id==='live-full'){location.href=location.origin+location.pathname+'?person='+encodeURIComponent(liveParams.get('person')||'Всички');return}
+ if(el.id==='live-reload'){liveLoad();return}
+ if(el.dataset.liveNote){let t=liveRows.find(x=>x.id===el.dataset.liveNote);if(!t)return;let note=prompt('Бележка или линк към доказателство (до 1500 символа)',t.note||'');if(note!==null)liveSet(t.id,t.status,note)}
+});
+document.addEventListener('change',ev=>{
+ let el=ev.target;
+ if(!liveDate)return;
+ if(el.dataset.liveDone){let t=liveRows.find(x=>x.id===el.dataset.liveDone);if(t)liveSet(t.id,el.checked?'done':'todo',t.note||'')}
+ if(el.dataset.liveStatus){let t=liveRows.find(x=>x.id===el.dataset.liveStatus);if(t)liveSet(t.id,el.value,t.note||'')}
+});
+function liveInit(){liveLoad();liveTicker=setInterval(()=>{if(!document.hidden)liveLoad()},30000)}
+
 try{session=JSON.parse(localStorage.getItem('sfcal_auth')||'null')}catch{}
-if(new URLSearchParams(location.search).get('secure')==='1'){init()}else{demoRender()}
+if(liveDate){liveInit()}else if(new URLSearchParams(location.search).get('secure')==='1'){init()}else{demoRender()}
 })();
 </script></body></html>
